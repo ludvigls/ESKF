@@ -328,13 +328,13 @@ fig4, axs4 = plt.subplots(2, 1, num=4, clear=True)
 axs4[0].plot(t, np.linalg.norm(delta_x[:N, POS_IDX], axis=1))
 axs4[0].plot(
     np.arange(0, N, 100) * dt,
-    np.linalg.norm(x_true[99:100:N, :3] - z_GNSS[:GNSSk], axis=1),
+    np.linalg.norm(x_true[99:N:100, :3] - z_GNSS[:GNSSk], axis=1),
 )
 axs4[0].set(ylabel="Position error [m]")
 axs4[0].legend(
     [
         f"Estimation error ({np.sqrt(np.mean(np.sum(delta_x[:N, POS_IDX]**2, axis=1)))})",
-        f"Measurement error ({np.sqrt(np.mean(np.sum((x_true[99:100:N, POS_IDX] - z_GNSS[GNSSk - 1])**2, axis=1)))})",
+        f"Measurement error ({np.sqrt(np.mean(np.sum((x_true[99:N:100, POS_IDX] - z_GNSS[:GNSSk])**2, axis=1)))})",
     ]
 )
 

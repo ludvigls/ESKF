@@ -8,8 +8,8 @@ def cross_product_matrix(n: ArrayLike, debug: bool = True) -> np.ndarray:
 
     #S = np.zeros((3, 3))  # TODO: Create the cross product matrix
     S=np.array([[0,-n[2],n[1]],
-        [n[2],0,-n[0]],
-        [-n[1],n[0],0]])
+               [n[2],0,-n[0]],
+               [-n[1],n[0],0]])
     if debug:
         assert S.shape == (
             3,
