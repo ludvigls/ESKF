@@ -6,7 +6,6 @@ from cat_slice import CatSlice
 import numpy as np
 import scipy.linalg as la
 
-import math  
 from quaternion import (
     euler_to_quaternion,
     quaternion_product,
@@ -28,7 +27,6 @@ GYRO_BIAS_IDX = CatSlice(start=13, stop=16)
 ERR_ATT_IDX = CatSlice(start=6, stop=9)
 ERR_ACC_BIAS_IDX = CatSlice(start=9, stop=12)
 ERR_GYRO_BIAS_IDX = CatSlice(start=12, stop=15)
-
 
 
 # %% The class
@@ -74,18 +72,14 @@ class ESKF:
         omega: np.ndarray,
         Ts: float,
     ) -> np.ndarray:
-        """
-        Discrete time prediction, equation (10.58)
-
+        """Discrete time prediction, equation (10.58)
         Args:
             x_nominal (np.ndarray): The nominal state to predict, shape (16,)
             acceleration (np.ndarray): The estimated acceleration in body for the predicted interval, shape (3,)
             omega (np.ndarray): The estimated rotation rate in body for the prediction interval, shape (3,)
             Ts (float): The sampling time
-
         Raises:
             AssertionError: If any input is of the wrong shape, and if debug mode is on, certain numeric properties
-
         Returns:
             np.ndarray: The predicted nominal state, shape (16,)
         """
@@ -116,29 +110,22 @@ class ESKF:
             ), "ESKF.predict_nominal: Quaternion not normalized and norm failed to catch it."
 
         R = quaternion_to_rotation_matrix(quaternion, debug=self.debug)
-        acceleration=R@acceleration
-        omega=R@omega
-        position_prediction=position+Ts*velocity+Ts**2/2*acceleration#acceleration maybe wrong
-        velocity_prediction = velocity+Ts*acceleration #same maybe wrong
-        #position_prediction = np.zeros((3,))  # TODO: Calculate predicted position
-        #velocity_prediction = np.zeros((3,))  # TODO: Calculate predicted velocity
-        k=Ts*omega
-        absk=la.norm(k)
-        quaternion_prediction = np.array(
-            #[1, 0, 0, 0]
-            np.array([np.cos(absk/2),*(np.sin(absk/2)*k.T/absk)]))  # TODO: Calculate predicted quaternion
-        quaternion_prediction = quaternion_product(quaternion, quaternion_prediction)
+        acceleration_world = R @ acceleration
+        omega_world = R @ omega
+
+        position_prediction = position + Ts*velocity + Ts**2/2 * acceleration_world
+        velocity_prediction = velocity + Ts*acceleration_world
+
+        kappa = Ts * omega_world
+        kappa_norm = la.norm(kappa)
+        delta_quat = np.array([np.cos(kappa_norm/2), *(np.sin(kappa_norm/2) * kappa.T/kappa_norm)])
+        quaternion_prediction = quaternion_product(quaternion, delta_quat)
 
         # Normalize quaternion
-        quaternion_prediction/=la.norm(quaternion_prediction) # TODO: Normalize
-        acceleration_bias_prediction=(1 - Ts * self.p_acc) * acceleration_bias
-        #acceleration_bias_prediction = np.zeros(
-        #    (3,)
-        #)  # TODO: Calculate predicted acceleration bias
-        gyroscope_bias_prediction=(1 - Ts * self.p_gyro) * gyroscope_bias
-        #gyroscope_bias_prediction = np.zeros(
-        #    (3,)
-        #)  # TODO: Calculate predicted gyroscope bias
+        quaternion_prediction = quaternion_prediction  / la.norm(quaternion_prediction)
+
+        acceleration_bias_prediction = (1 - Ts * self.p_acc) * acceleration_bias
+        gyroscope_bias_prediction = (1 - Ts * self.p_gyro) * gyroscope_bias
 
         x_nominal_predicted = np.concatenate(
             (
@@ -159,15 +146,12 @@ class ESKF:
         self, x_nominal: np.ndarray, acceleration: np.ndarray, omega: np.ndarray,
     ) -> np.ndarray:
         """Calculate the continuous time error state dynamics Jacobian.
-
         Args:
             x_nominal (np.ndarray): The nominal state, shape (16,)
             acceleration (np.ndarray): The estimated acceleration for the prediction interval, shape (3,)
             omega (np.ndarray): The estimated rotation rate for the prediction interval, shape (3,)
-
         Raises:
             AssertionError: If any input is of the wrong shape, and if debug mode is on, certain numeric properties
-
         Returns:
             np.ndarray: Continuous time error state dynamics Jacobian, shape (15, 15)
         """
@@ -187,14 +171,14 @@ class ESKF:
         A = np.zeros((15, 15))
 
         # Set submatrices
-        A[POS_IDX * VEL_IDX] = np.zeros((3,)) #done
-        A[VEL_IDX * ERR_ATT_IDX] = -R@cross_product_matrix(acceleration)
+        A[POS_IDX * VEL_IDX] = np.eye(3)
+        A[VEL_IDX * ERR_ATT_IDX] = -R @ cross_product_matrix(acceleration)
         A[VEL_IDX * ERR_ACC_BIAS_IDX] = -R
         A[ERR_ATT_IDX * ERR_ATT_IDX] = -cross_product_matrix(omega)
         A[ERR_ATT_IDX * ERR_GYRO_BIAS_IDX] = -np.eye(3)
-        A[ERR_ACC_BIAS_IDX * ERR_ACC_BIAS_IDX] = -self.p_acc*np.eye(3)
-        A[ERR_GYRO_BIAS_IDX * ERR_GYRO_BIAS_IDX] = -self.p_gyro*np.eye(3)
-    
+        A[ERR_ACC_BIAS_IDX * ERR_ACC_BIAS_IDX] = -self.p_acc * np.eye(3)
+        A[ERR_GYRO_BIAS_IDX * ERR_GYRO_BIAS_IDX] = -self.p_gyro * np.eye(3)
+
         # Bias correction
         A[VEL_IDX * ERR_ACC_BIAS_IDX] = A[VEL_IDX * ERR_ACC_BIAS_IDX] @ self.S_a
         A[ERR_ATT_IDX * ERR_GYRO_BIAS_IDX] = (
@@ -209,13 +193,10 @@ class ESKF:
 
     def Gerr(self, x_nominal: np.ndarray,) -> np.ndarray:
         """Calculate the continuous time error state noise input matrix
-
         Args:
             x_nominal (np.ndarray): The nominal state, shape (16,)
-
         Raises:
             AssertionError: If any input is of the wrong shape, and if debug mode is on, certain numeric properties
-
         Returns:
             np.ndarray: The continuous time error state noise input matrix, shape (15, 12)
         """
@@ -226,9 +207,9 @@ class ESKF:
 
         R = quaternion_to_rotation_matrix(x_nominal[ATT_IDX], debug=self.debug)
 
-        G = np.zeros((15, 12))
-        diagonal=la.block_diag(-R,-np.eye(3),np.eye(3),np.eye(3))
-        G=np.vstack([np.zeros((3,12)),diagonal])
+        G_diag = la.block_diag(-R, -np.eye(3), np.eye(3), np.eye(3))
+        G = np.vstack([np.zeros((3,12)), G_diag])
+
         assert G.shape == (15, 12), f"ESKF.Gerr: G-matrix shape incorrect {G.shape}"
         return G
 
@@ -240,16 +221,13 @@ class ESKF:
         Ts: float,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Calculate the discrete time linearized error state transition and covariance matrix.
-
         Args:
             x_nominal (np.ndarray): The nominal state, shape (16,)
             acceleration (np.ndarray): The estimated acceleration in body for the prediction interval, shape (3,)
             omega (np.ndarray): The estimated rotation rate in body for the prediction interval, shape (3,)
             Ts (float): The sampling time
-
         Raises:
             AssertionError: If any input is of the wrong shape, and if debug mode is on, certain numeric properties
-
         Returns:
             Tuple[np.ndarray, np.ndarray]: Discrete error matrices Tuple(Ad, GQGd)
                 Ad: The discrete time error state system matrix, shape (15, 15)
@@ -269,24 +247,15 @@ class ESKF:
         A = self.Aerr(x_nominal, acceleration, omega)
         G = self.Gerr(x_nominal)
 
-        V = np.zeros((30, 30))
-        V[CatSlice(0,15)*CatSlice(0,15)]=-A*Ts
-        V[CatSlice(0,15)*CatSlice(15,30)]=G@self.Q_err@G.T*Ts
-        V[CatSlice(15,30)*CatSlice(15,30)]=A.T*Ts
+        V = np.block([[-A, G@self.Q_err@G.T], [np.zeros_like(A), A.T]]) * Ts
         assert V.shape == (
             30,
             30,
         ), f"ESKF.discrete_error_matrices: Van Loan matrix shape incorrect {omega.shape}"
-        #VanLoanMatrix = la.expm(V)  # This can be slow...
-        VanLoanMatrix=np.eye(30)+V+1/2.0*V@V
+        VanLoanMatrix = la.expm(V)  # np.eye(30) + V + V@V/2
 
-        V1_T = VanLoanMatrix[CatSlice(15,30)**2].T # = Ad = exp(A' * deltaT)
-        V2 = VanLoanMatrix[CatSlice(0,15)*CatSlice(15,30)]
-
-        #This is the discrete version of Q, given by van loans
-        Ad = V1_T
-        GQGd = V1_T@V2 # Qd = V1' * V2 (Therom 4.5.2)
-
+        Ad = VanLoanMatrix[CatSlice(15,30)**2].T
+        GQGd = Ad @ VanLoanMatrix[CatSlice(0,15)*CatSlice(15,30)]
 
         assert Ad.shape == (
             15,
@@ -308,17 +277,14 @@ class ESKF:
         Ts: float,
     ) -> np.ndarray:
         """Predict the error state covariance Ts time units ahead using linearized continuous time dynamics.
-
         Args:
             x_nominal (np.ndarray): The nominal state, shape (16,)
             P (np.ndarray): The error state covariance, shape (15, 15)
             acceleration (np.ndarray): The estimated acceleration for the prediction interval, shape (3,)
             omega (np.ndarray): The estimated rotation rate for the prediction interval, shape (3,)
             Ts (float): The sampling time
-
         Raises:
             AssertionError: If any input is of the wrong shape, and if debug mode is on, certain numeric properties
-
         Returns:
             np.ndarray: The predicted error state covariance matrix, shape (15, 15)
         """
@@ -339,7 +305,7 @@ class ESKF:
 
         Ad, GQGd = self.discrete_error_matrices(x_nominal, acceleration, omega, Ts)
 
-        P_predicted=Ad@P@Ad.T+GQGd
+        P_predicted = Ad @ P @ Ad.T + GQGd
 
         assert P_predicted.shape == (
             15,
@@ -356,17 +322,14 @@ class ESKF:
         Ts: float,
     ) -> Tuple[np.array, np.array]:
         """Predict the nominal estimate and error state covariance Ts time units using IMU measurements z_*.
-
         Args:
             x_nominal (np.ndarray): The nominal state to predict, shape (16,)
             P (np.ndarray): The error state covariance to predict, shape (15, 15)
             z_acc (np.ndarray): The measured acceleration for the prediction interval, shape (3,)
             z_gyro (np.ndarray): The measured rotation rate for the prediction interval, shape (3,)
             Ts (float): The sampling time
-
         Raises:
             AssertionError: If any input is of the wrong shape, and if debug mode is on, certain numeric properties
-
         Returns:
             Tuple[ np.array, np.array ]: Prediction Tuple(x_nominal_predicted, P_predicted)
                 x_nominal_predicted: The predicted nominal state, shape (16,)
@@ -391,12 +354,12 @@ class ESKF:
         gyro_bias = self.S_g @ x_nominal[GYRO_BIAS_IDX]
 
         # debias IMU measurements
-        acceleration = r_z_acc-acc_bias
-        omega =r_z_gyro-gyro_bias
+        acceleration = r_z_acc - acc_bias
+        omega = r_z_gyro - gyro_bias
 
         # perform prediction
-        x_nominal_predicted = self.predict_nominal(x_nominal,acceleration,omega,Ts)
-        P_predicted = self.predict_covariance(x_nominal_predicted,P,acceleration,omega,Ts) #should it be x_nominal instead??
+        x_nominal_predicted = self.predict_nominal(x_nominal, acceleration, omega, Ts)
+        P_predicted = self.predict_covariance(x_nominal, P, acceleration, omega, Ts)
 
         assert x_nominal_predicted.shape == (
             16,
@@ -412,15 +375,12 @@ class ESKF:
         self, x_nominal: np.ndarray, delta_x: np.ndarray, P: np.ndarray,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Inject a calculated error state into the nominal state and compensate in the covariance.
-
         Args:
             x_nominal (np.ndarray): The nominal state to inject the error state deviation into, shape (16,)
             delta_x (np.ndarray): The error state deviation, shape (15,)
             P (np.ndarray): The error state covariance matrix
-
         Raises:
             AssertionError: If any input is of the wrong shape, and if debug mode is on, certain numeric properties
-
         Returns:
             Tuple[ np.ndarray, np.ndarray ]: Injected Tuple(x_injected, P_injected):
                 x_injected: The injected nominal state, shape (16,)
@@ -442,17 +402,21 @@ class ESKF:
         DTX_IDX = POS_IDX + VEL_IDX + ERR_ACC_BIAS_IDX + ERR_GYRO_BIAS_IDX
 
         x_injected = x_nominal.copy()
-        x_injected[INJ_IDX]=x_injected[INJ_IDX]+delta_x[DTX_IDX]
-        
-        x_injected[ATT_IDX] = quaternion_product(x_nominal[ATT_IDX],np.array([1, *delta_x[ERR_ATT_IDX]/2]))
-        # TODO: Inject error state into nominal state (except attitude / quaternion)
-        # TODO: Inject attitude
-        # TODO: Normalize quaternion
+
+        # Done: Inject error state into nominal state (except attitude / quaternion)
+        x_injected[INJ_IDX] = x_nominal[INJ_IDX] + delta_x[DTX_IDX]
+
+        # Done: Inject attitude
+        delta_quat = np.array([1, *delta_x[ERR_ATT_IDX]/2])
+        x_injected[ATT_IDX] = quaternion_product(x_nominal[ATT_IDX], delta_quat)
+
+        # Done: Normalize quaternion
         x_injected[ATT_IDX] = x_injected[ATT_IDX]/la.norm(x_injected[ATT_IDX])
 
         # Covariance
-        G = la.block_diag(np.eye(6),np.eye(3)-cross_product_matrix(delta_x[ERR_ATT_IDX]/2),np.eye(6))  # TODO: Compensate for injection in the covariances
-        P_injected =G@P@G.T
+        G_injected = la.block_diag(np.eye(6), np.eye(3) - cross_product_matrix(delta_x[ERR_ATT_IDX]/2), np.eye(6))  
+        P_injected = G_injected @ P @ G_injected.T
+
         assert x_injected.shape == (
             16,
         ), f"ESKF.inject: x_injected shape incorrect {x_injected.shape}"
@@ -472,17 +436,14 @@ class ESKF:
         lever_arm: np.ndarray = np.zeros(3),
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Calculates the innovation and its covariance for a GNSS position measurement
-
         Args:
             x_nominal (np.ndarray): The nominal state to calculate the innovation from, shape (16,)
             P (np.ndarray): The error state covariance to calculate the innovation covariance from, shape (15, 15)
             z_GNSS_position (np.ndarray): The measured 3D position, shape (3,)
             R_GNSS (np.ndarray): The estimated covariance matrix of the measurement, shape (3, 3)
             lever_arm (np.ndarray, optional): The position of the GNSS receiver from the IMU reference. Defaults to np.zeros(3).
-
         Raises:
             AssertionError: If any input is of the wrong shape, and if debug mode is on, certain numeric properties
-
         Returns:
             Tuple[ np.ndarray, np.ndarray ]: Innovation Tuple(v, S):
                 v: innovation, shape (3,)
@@ -505,11 +466,20 @@ class ESKF:
             3,
         ), f"ESKF.innovation_GNSS: lever_arm shape incorrect {lever_arm.shape}"
 
-        #H = np.zeros((1,))  # TODO: measurement matrix
-        H = np.block([np.eye(3), np.zeros((3,12))])
-        v = z_GNSS_position-x_nominal[POS_IDX]
 
-        #TODO: innovation
+        # Hx = np.block([np.eye(3), np.zeros((3,13))])
+
+        # q = x_nominal[ATT_IDX]
+        # Qdx = np.array([
+        #     [-q[1], -q[2], -q[3]],
+        #     [ q[0], -q[3],  q[2]], 
+        #     [ q[3],  q[0], -q[1]], 
+        #     [-q[2],  q[1],  q[0]]]) /2
+        # Xdx = la.block_diag(np.eye(6), Qdx, np.eye(6))
+        # H = Hx @ Xdx
+        H = np.block([np.eye(3), np.zeros((3,12))])
+
+        v = z_GNSS_position - x_nominal[POS_IDX]
 
         # leverarm compensation
         if not np.allclose(lever_arm, 0):
@@ -517,7 +487,7 @@ class ESKF:
             H[:, ERR_ATT_IDX] = -R @ cross_product_matrix(lever_arm, debug=self.debug)
             v -= R @ lever_arm
 
-        S = H@P@H.T+R_GNSS # TODO: innovation covariance
+        S = H @ P @ H.T + R_GNSS
 
         assert v.shape == (3,), f"ESKF.innovation_GNSS: v shape incorrect {v.shape}"
         assert S.shape == (3, 3), f"ESKF.innovation_GNSS: S shape incorrect {S.shape}"
@@ -532,17 +502,14 @@ class ESKF:
         lever_arm: np.ndarray = np.zeros(3),
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Updates the state and covariance from a GNSS position measurement
-
         Args:
             x_nominal (np.ndarray): The nominal state to update, shape (16,)
             P (np.ndarray): The error state covariance to update, shape (15, 15)
             z_GNSS_position (np.ndarray): The measured 3D position, shape (3,)
             R_GNSS (np.ndarray): The estimated covariance matrix of the measurement, shape (3, 3)
             lever_arm (np.ndarray, optional): The position of the GNSS receiver from the IMU reference, shape (3,). Defaults to np.zeros(3), shape (3,).
-
         Raises:
             AssertionError: If any input is of the wrong shape, and if debug mode is on, certain numeric properties
-
         Returns:
             Tuple[np.ndarray, np.ndarray]: Updated Tuple(x_injected, P_injected):
                 x_injected: The nominal state after injection of updated error state, shape (16,)
@@ -579,12 +546,12 @@ class ESKF:
             H[:, ERR_ATT_IDX] = -R @ cross_product_matrix(lever_arm, debug=self.debug)
 
         # KF error state update
-        W = P@H.T@np.linalg.inv(S) # TODO: Kalman gain
-        delta_x = W@innovation # TODO: delta x
+        W = P @ H.T @ la.inv(S)
+        delta_x = W @ innovation
 
         Jo = I - W @ H  # for Joseph form
 
-        P_update = Jo@P@Jo.T+W@R_GNSS@W.T # TODO: P update
+        P_update = Jo @ P @ Jo.T + W @ R_GNSS @ W.T
 
         # error state injection
         x_injected, P_injected = self.inject(x_nominal, delta_x, P_update)
@@ -608,17 +575,14 @@ class ESKF:
         lever_arm: np.ndarray = np.zeros(3),
     ) -> float:
         """Calculates the NIS for a GNSS position measurement
-
         Args:
             x_nominal (np.ndarray): The nominal state to calculate the innovation from, shape (16,)
             P (np.ndarray): The error state covariance to calculate the innovation covariance from, shape (15, 15)
             z_GNSS_position (np.ndarray): The measured 3D position, shape (3,)
             R_GNSS (np.ndarray): The estimated covariance matrix of the measurement, shape (3,)
             lever_arm (np.ndarray, optional): The position of the GNSS receiver from the IMU reference, shape (3,). Defaults to np.zeros(3).
-
         Raises:
             AssertionError: If any input is of the wrong shape, and if debug mode is on, certain numeric properties
-
         Returns:
             float: The normalized innovations squared (NIS)
         """
@@ -643,7 +607,7 @@ class ESKF:
             x_nominal, P, z_GNSS_position, R_GNSS, lever_arm
         )
 
-        NIS = v.T@np.linalg.inv(S)@v  # TODO: Calculate NIS # maybe S not invertable
+        NIS = v.T @ la.solve(S, v)
 
         assert NIS >= 0, "EKSF.NIS_GNSS_positionNIS: NIS not positive"
 
@@ -652,14 +616,11 @@ class ESKF:
     @classmethod
     def delta_x(cls, x_nominal: np.ndarray, x_true: np.ndarray,) -> np.ndarray:
         """Calculates the error state between x_nominal and x_true
-
         Args:
             x_nominal (np.ndarray): The nominal estimated state, shape (16,)
             x_true (np.ndarray): The true state, shape (16,)
-
         Raises:
             AssertionError: If any input is of the wrong shape, and if debug mode is on, certain numeric properties
-
         Returns:
             np.ndarray: The state difference in error state, shape (15,)
         """
@@ -671,19 +632,17 @@ class ESKF:
             16,
         ), f"ESKF.delta_x: x_true shape incorrect {x_true.shape}"
 
-        delta_position = x_true[POS_IDX]-x_nominal[POS_IDX]  # TODO: Delta position
-        delta_velocity = x_true[VEL_IDX]-x_nominal[VEL_IDX]  # TODO: Delta velocity
+        delta_position = x_true[POS_IDX] - x_nominal[POS_IDX]
+        delta_velocity = x_true[VEL_IDX] - x_nominal[VEL_IDX]
 
-        quaternion_conj = np.diag([1,-1,-1,-1])@x_nominal[ATT_IDX]  # TODO: Conjugate of quaternion
+        quaternion_conj = np.diag([1,-1,-1,-1]) @ x_nominal[ATT_IDX]
 
-        delta_quaternion = quaternion_product(quaternion_conj,x_true[ATT_IDX])  # TODO: Error quaternion
-        #can do this cause of general formulation of error
-        
-        delta_theta = 2*delta_quaternion[1:]
+        delta_quaternion = quaternion_product(quaternion_conj, x_true[ATT_IDX])
+        delta_theta = 2 * delta_quaternion[1:]
 
         # Concatenation of bias indices
         BIAS_IDX = ACC_BIAS_IDX + GYRO_BIAS_IDX
-        delta_bias = x_true[BIAS_IDX]-x_nominal[BIAS_IDX] # TODO: Error biases
+        delta_bias = x_true[BIAS_IDX] - x_nominal[BIAS_IDX]
 
         d_x = np.concatenate((delta_position, delta_velocity, delta_theta, delta_bias))
 
@@ -696,15 +655,12 @@ class ESKF:
         cls, x_nominal: np.ndarray, P: np.ndarray, x_true: np.ndarray,
     ) -> np.ndarray:
         """Calculates the total NEES and the NEES for the substates
-
         Args:
             x_nominal (np.ndarray): The nominal estimate
             P (np.ndarray): The error state covariance
             x_true (np.ndarray): The true state
-
         Raises:
             AssertionError: If any input is of the wrong shape, and if debug mode is on, certain numeric properties
-
         Returns:
             np.ndarray: NEES for [all, position, velocity, attitude, acceleration_bias, gyroscope_bias], shape (6,)
         """
@@ -718,37 +674,25 @@ class ESKF:
         ), f"ESKF.NEES: x_true shape incorrect {x_true.shape}"
 
         d_x = cls.delta_x(x_nominal, x_true)
-        """
-        NEES_all = d_x.T@np.linalg.inv(P)@d_x  # TODO: NEES all
-        NEES_pos = d_x[POS_IDX].T@np.linalg.inv(P[POS_IDX**2])@d_x[POS_IDX] # TODO: NEES position
-        NEES_vel = d_x[VEL_IDX].T@np.linalg.inv(P[VEL_IDX**2])@d_x[VEL_IDX]  # TODO: NEES velocity
-        NEES_att = d_x[ATT_IDX].T@np.linalg.inv(P[ATT_IDX**2])@d_x[ATT_IDX]  # TODO: NEES attitude
-        NEES_accbias = d_x[ACC_BIAS_IDX].T@np.linalg.inv(P[ACC_BIAS_IDX**2])@d_x[ACC_BIAS_IDX]  # TODO: NEES accelerometer bias
-        NEES_gyrobias = d_x[GYRO_BIAS_IDX].T@(P[GYRO_BIAS_IDX**2])@d_x[GYRO_BIAS_IDX]  # TODO: NEES gyroscope bias
-        NEES_gyrobias=cls._NEES(P[ERR_GYRO_BIAS_IDX**2], d_x[ERR_GYRO_BIAS_IDX])
-        """
-        NEES_all = cls._NEES(d_x,P)
-        NEES_pos = cls._NEES(d_x[POS_IDX],P[POS_IDX**2])
-        NEES_vel = cls._NEES(d_x[VEL_IDX],P[VEL_IDX**2])
-        NEES_att = cls._NEES(d_x[ERR_ATT_IDX],P[ERR_ATT_IDX**2])
-        NEES_accbias = cls._NEES(d_x[ERR_ATT_IDX],P[ERR_ATT_IDX**2])
-        NEES_gyrobias = cls._NEES(d_x[ERR_GYRO_BIAS_IDX],P[ERR_GYRO_BIAS_IDX**2])
 
+        NEES_all = cls._NEES(P, d_x)
+        NEES_pos = cls._NEES(P[POS_IDX**2], d_x[POS_IDX])
+        NEES_vel = cls._NEES(P[VEL_IDX**2], d_x[VEL_IDX])
+        NEES_att = cls._NEES(P[ERR_ATT_IDX**2], d_x[ERR_ATT_IDX])
+        NEES_accbias = cls._NEES(P[ERR_ATT_IDX**2], d_x[ERR_ATT_IDX])
+        NEES_gyrobias = cls._NEES(P[ERR_GYRO_BIAS_IDX**2], d_x[ERR_GYRO_BIAS_IDX])
 
         NEESes = np.array(
             [NEES_all, NEES_pos, NEES_vel, NEES_att, NEES_accbias, NEES_gyrobias]
         )
         assert np.all(NEESes >= 0), "ESKF.NEES: one or more negative NEESes"
-        #print(NEESes)
-        #print(type(NEESes))
         return NEESes
-        
+
     @classmethod
-    def _NEES(cls, diff, P):
-        NEES = diff@la.solve(P,diff)
+    def _NEES(cls, P, diff):
+        NEES = diff @ la.solve(P, diff)
         assert NEES >= 0, "ESKF._NEES: negative NEES"
         return NEES
 
 
 # %%
-
