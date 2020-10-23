@@ -114,7 +114,7 @@ class ESKF:
             assert np.allclose(
                 np.sum(quaternion ** 2), 1, rtol=0, atol=1e-15
             ), "ESKF.predict_nominal: Quaternion not normalized and norm failed to catch it."
-
+        
         R = quaternion_to_rotation_matrix(quaternion, debug=self.debug)
         acceleration=R@acceleration
         omega=R@omega
@@ -187,7 +187,7 @@ class ESKF:
         A = np.zeros((15, 15))
 
         # Set submatrices
-        A[POS_IDX * VEL_IDX] = np.zeros((3,)) #done
+        A[POS_IDX * VEL_IDX] = np.eye(3) #done
         A[VEL_IDX * ERR_ATT_IDX] = -R@cross_product_matrix(acceleration)
         A[VEL_IDX * ERR_ACC_BIAS_IDX] = -R
         A[ERR_ATT_IDX * ERR_ATT_IDX] = -cross_product_matrix(omega)
@@ -268,8 +268,7 @@ class ESKF:
 
         A = self.Aerr(x_nominal, acceleration, omega)
         G = self.Gerr(x_nominal)
-
-        V = np.zeros((30, 30))
+        V = np.zeros((30, 30)) #use this!
         V[CatSlice(0,15)*CatSlice(0,15)]=-A*Ts
         V[CatSlice(0,15)*CatSlice(15,30)]=G@self.Q_err@G.T*Ts
         V[CatSlice(15,30)*CatSlice(15,30)]=A.T*Ts
@@ -286,8 +285,7 @@ class ESKF:
         #This is the discrete version of Q, given by van loans
         Ad = V1_T
         GQGd = V1_T@V2 # Qd = V1' * V2 (Therom 4.5.2)
-
-
+        
         assert Ad.shape == (
             15,
             15,
@@ -383,6 +381,7 @@ class ESKF:
         ), f"ESKF.predict: zGyro shape incorrect {z_gyro.shape}"
 
         # correct measurements
+        
         r_z_acc = self.S_a @ z_acc
         r_z_gyro = self.S_g @ z_gyro
 
@@ -396,7 +395,7 @@ class ESKF:
 
         # perform prediction
         x_nominal_predicted = self.predict_nominal(x_nominal,acceleration,omega,Ts)
-        P_predicted = self.predict_covariance(x_nominal_predicted,P,acceleration,omega,Ts) #should it be x_nominal instead??
+        P_predicted = self.predict_covariance(x_nominal,P,acceleration,omega,Ts) #should it be x_nominal instead??
 
         assert x_nominal_predicted.shape == (
             16,
@@ -440,7 +439,7 @@ class ESKF:
         INJ_IDX = POS_IDX + VEL_IDX + ACC_BIAS_IDX + GYRO_BIAS_IDX
         # All error indices, minus the attitude
         DTX_IDX = POS_IDX + VEL_IDX + ERR_ACC_BIAS_IDX + ERR_GYRO_BIAS_IDX
-
+        
         x_injected = x_nominal.copy()
         x_injected[INJ_IDX]=x_injected[INJ_IDX]+delta_x[DTX_IDX]
         
@@ -453,6 +452,8 @@ class ESKF:
         # Covariance
         G = la.block_diag(np.eye(6),np.eye(3)-cross_product_matrix(delta_x[ERR_ATT_IDX]/2),np.eye(6))  # TODO: Compensate for injection in the covariances
         P_injected =G@P@G.T
+        
+
         assert x_injected.shape == (
             16,
         ), f"ESKF.inject: x_injected shape incorrect {x_injected.shape}"
@@ -731,7 +732,7 @@ class ESKF:
         NEES_pos = cls._NEES(d_x[POS_IDX],P[POS_IDX**2])
         NEES_vel = cls._NEES(d_x[VEL_IDX],P[VEL_IDX**2])
         NEES_att = cls._NEES(d_x[ERR_ATT_IDX],P[ERR_ATT_IDX**2])
-        NEES_accbias = cls._NEES(d_x[ERR_ATT_IDX],P[ERR_ATT_IDX**2])
+        NEES_accbias = cls._NEES(d_x[ERR_ACC_BIAS_IDX],P[ERR_ACC_BIAS_IDX**2])
         NEES_gyrobias = cls._NEES(d_x[ERR_GYRO_BIAS_IDX],P[ERR_GYRO_BIAS_IDX**2])
 
 
@@ -745,6 +746,7 @@ class ESKF:
         
     @classmethod
     def _NEES(cls, diff, P):
+        #print(P)
         NEES = diff@la.solve(P,diff)
         assert NEES >= 0, "ESKF._NEES: negative NEES"
         return NEES
