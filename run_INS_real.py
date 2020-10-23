@@ -114,8 +114,8 @@ gnss_steps = len(z_GNSS)
 
 # %% Measurement noise
 # Continous noise
-cont_gyro_noise_std = # TODO
-cont_acc_noise_std = # TODO
+cont_gyro_noise_std = # TODO TUNE
+cont_acc_noise_std = # TODO TUNE
 
 # Discrete sample noise at simulation rate used
 rate_std = cont_gyro_noise_std*np.sqrt(1/dt)

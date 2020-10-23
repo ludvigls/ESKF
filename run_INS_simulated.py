@@ -110,9 +110,9 @@ gnss_steps = len(z_GNSS)
 # %% Measurement noise
 # IMU noise values for STIM300, based on datasheet and simulation sample rate
 # Continous noise
-# TODO: What to remove here?
-cont_gyro_noise_std = 4.36e-5  # (rad/s)/sqrt(Hz)
-cont_acc_noise_std = 1.167e-3  # (m/s**2)/sqrt(Hz)
+# TODO: CAN BE TUNED
+cont_gyro_noise_std = 7e-5 #4.36e-5  # (rad/s)/sqrt(Hz)
+cont_acc_noise_std = 4e-3#1.167e-3  # (m/s**2)/sqrt(Hz)
 
 # Discrete sample noise at simulation rate used
 rate_std = 0.5 * cont_gyro_noise_std * np.sqrt(1 / dt)
@@ -124,16 +124,15 @@ cont_rate_bias_driving_noise_std = (
     (1 / 3) * rate_bias_driving_noise_std / np.sqrt(1 / dt)
 )
 
-acc_bias_driving_noise_std = 4e-3
+acc_bias_driving_noise_std = 4 #WAS TUNED THE HEEELLL UPP 
 cont_acc_bias_driving_noise_std = 6 * acc_bias_driving_noise_std / np.sqrt(1 / dt)
 
 # Position and velocity measurement
-p_std = np.array([0.3, 0.3, 0.5])  # Measurement noise
+p_std = 2*np.array([0.3, 0.3, 0.5]) # np.array([0.3, 0.3, 0.5]) #Measurement noise
 R_GNSS = np.diag(p_std ** 2)
 
-p_acc = 1e-16
-
-p_gyro = 1e-16
+p_acc = 1e-17 #1e-16
+p_gyro = 1e-17 #1e-16
 
 # %% Estimator
 eskf = ESKF(
@@ -145,7 +144,7 @@ eskf = ESKF(
     p_gyro,
     S_a=S_a, # set the accelerometer correction matrix
     S_g=S_g, # set the gyro correction matrix,
-    debug=True # TODO: False to avoid expensive debug checks, can also be suppressed by calling 'python -O run_INS_simulated.py'
+    debug=False # TODO: False to avoid expensive debug checks, can also be suppressed by calling 'python -O run_INS_simulated.py'
 )
 
 # %% Allocate
@@ -172,11 +171,11 @@ x_pred[0, VEL_IDX] = np.array([20, 0, 0])  # starting at 20 m/s due north
 x_pred[0, 6] = 1  # no initial rotation: nose to North, right to East, and belly down
 
 # These have to be set reasonably to get good results
-P_pred[0][POS_IDX ** 2] = np.eye(3)# TODO
-P_pred[0][VEL_IDX ** 2] = np.eye(3)# TODO
-P_pred[0][ERR_ATT_IDX ** 2] = np.eye(3)# TODO # error rotation vector (not quat)
-P_pred[0][ERR_ACC_BIAS_IDX ** 2] = np.eye(3)# TODO
-P_pred[0][ERR_GYRO_BIAS_IDX ** 2] = np.eye(3)# TODO
+P_pred[0][POS_IDX ** 2] = np.eye(3)# TODO TUNE
+P_pred[0][VEL_IDX ** 2] = np.eye(3)# TODO TUNE
+P_pred[0][ERR_ATT_IDX ** 2] = 0.05*np.eye(3)# TODO TUNE# error rotation vector (not quat)
+P_pred[0][ERR_ACC_BIAS_IDX ** 2] = np.eye(3)# TODO TUNE
+P_pred[0][ERR_GYRO_BIAS_IDX ** 2] = np.eye(3)# TODO TUNE
 
 # %% Test: you can run this cell to test your implementation
 dummy = eskf.predict(x_pred[0], P_pred[0], z_acceleration[0], z_gyroscope[0], dt)
@@ -217,9 +216,26 @@ for k in tqdm(range(N)):
     if eskf.debug:
         assert np.all(np.isfinite(P_pred[k])), f"Not finite P_pred at index {k + 1}"
 
+#Average NEES / NIS
+ANEESall = np.mean(NEES_all)
+ANEESpos = np.mean(NEES_pos)
+ANEESvel = np.mean(NEES_vel)
+ANEESatt = np.mean(NEES_att)
+ANEESaccbias = np.mean(NEES_accbias)
+ANEESgyrobias = np.mean(NEES_gyrobias)
+ANIS = np.mean(NIS)
+
+
+print(f"ANEESall = {ANEESall:.2f}")
+print(f"ANEESpos = {ANEESpos:.2f}")
+print(f"ANEESvel = {ANEESvel:.2f}")
+print(f"ANEESatt = {ANEESatt:.2f}")
+print(f"ANEESaccbias = {ANEESaccbias:.2f}")
+print(f"ANEESgyrobias = {ANEESgyrobias:.2f}")
+print(f"ANIS = {ANIS:.2f}")
+
 
 # %% Plots
-
 fig1 = plt.figure(1)
 ax = plt.axes(projection="3d")
 
