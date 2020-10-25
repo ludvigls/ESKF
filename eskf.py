@@ -117,8 +117,7 @@ class ESKF:
         
         #Predict position and velocity 
         R = quaternion_to_rotation_matrix(quaternion, debug=self.debug)
-        acceleration=R@acceleration
-        omega=R@omega
+        acceleration=R@acceleration+self.g
         position_prediction=position+Ts*velocity+Ts**2/2*acceleration#acceleration maybe wrong
         velocity_prediction = velocity+Ts*acceleration #same maybe wrong
 
