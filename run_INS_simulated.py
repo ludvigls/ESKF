@@ -119,16 +119,16 @@ rate_std = 0.5 * cont_gyro_noise_std * np.sqrt(1 / dt)
 acc_std = 0.5 * cont_acc_noise_std * np.sqrt(1 / dt)
 
 # Bias values
-rate_bias_driving_noise_std = 5e-5
+rate_bias_driving_noise_std = 10e-2
 cont_rate_bias_driving_noise_std = (
     (1 / 3) * rate_bias_driving_noise_std / np.sqrt(1 / dt)
 )
 
-acc_bias_driving_noise_std = 4 #WAS TUNED THE HEEELLL UPP 
+acc_bias_driving_noise_std = 3 #WAS TUNED THE HEEELLL UPP 
 cont_acc_bias_driving_noise_std = 6 * acc_bias_driving_noise_std / np.sqrt(1 / dt)
 
 # Position and velocity measurement
-p_std = 2*np.array([0.3, 0.3, 0.5]) # np.array([0.3, 0.3, 0.5]) #Measurement noise
+p_std = np.array([0.3, 0.3, 0.5]) # np.array([0.3, 0.3, 0.5]) #Measurement noise
 R_GNSS = np.diag(p_std ** 2)
 
 p_acc = 1e-17 #1e-16
@@ -171,11 +171,11 @@ x_pred[0, VEL_IDX] = np.array([20, 0, 0])  # starting at 20 m/s due north
 x_pred[0, 6] = 1  # no initial rotation: nose to North, right to East, and belly down
 
 # These have to be set reasonably to get good results
-P_pred[0][POS_IDX ** 2] = np.eye(3)# TODO TUNE
-P_pred[0][VEL_IDX ** 2] = np.eye(3)# TODO TUNE
-P_pred[0][ERR_ATT_IDX ** 2] = 0.05*np.eye(3)# TODO TUNE# error rotation vector (not quat)
-P_pred[0][ERR_ACC_BIAS_IDX ** 2] = np.eye(3)# TODO TUNE
-P_pred[0][ERR_GYRO_BIAS_IDX ** 2] = np.eye(3)# TODO TUNE
+P_pred[0][POS_IDX ** 2] = 0.01*np.eye(3)# TODO TUNE
+P_pred[0][VEL_IDX ** 2] = 0.01*np.eye(3)# TODO TUNE
+P_pred[0][ERR_ATT_IDX ** 2] = 0.01*np.eye(3)# TODO TUNE# error rotation vector (not quat)
+P_pred[0][ERR_ACC_BIAS_IDX ** 2] = 0.1*np.eye(3)# TODO TUNE
+P_pred[0][ERR_GYRO_BIAS_IDX ** 2] = 0.1*np.eye(3)# TODO TUNE
 
 # %% Test: you can run this cell to test your implementation
 dummy = eskf.predict(x_pred[0], P_pred[0], z_acceleration[0], z_gyroscope[0], dt)
