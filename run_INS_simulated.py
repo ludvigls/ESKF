@@ -227,7 +227,7 @@ ANEESvel = np.mean(NEES_vel)
 ANEESatt = np.mean(NEES_att)
 ANEESaccbias = np.mean(NEES_accbias)
 ANEESgyrobias = np.mean(NEES_gyrobias)
-ANIS = np.mean(NIS)
+ANIS = np.mean(NIS[:GNSSk])
 
 
 print(f"ANEESall = {ANEESall:.2f}")
