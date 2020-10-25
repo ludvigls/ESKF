@@ -1,0 +1,27 @@
+#MEASURMENT MODEL
+
+#continuous measurment noise (affecting R matrix)
+#Based on STIM300 datasheet
+cont_gyro_noise_std: 4.36e-5 #7e-5
+cont_acc_noise_std: 1.167e-3 #4e-3
+
+#bias values
+rate_bias_driving_noise_std: 5.0e-5 #10e-2
+acc_bias_driving_noise_std: 4.0e-3 #3
+
+#pos and velocity measurments - used in ESKF
+p_std: #std_gnss, R_GNSS = np.diag(p_std ** 2)
+   - 0.3
+   - 0.3
+   - 0.5
+p_acc: 1.0e-16 #1.0e-17
+p_gyro: 1.0e-16 #1.0e-17
+
+
+#Initial covariance for process models of state
+# all of these are timed with identity
+P_pred0_pos: 1 # 0.01*
+P_pred0_vel: 1 #0.01
+P_pred0_att: 1 #0.01
+P_pred0_accbias: 1 #0.1
+P_pred0_gyrobias: 1 #0.1
