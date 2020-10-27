@@ -7,6 +7,12 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 
+import yaml
+
+with open(r'params.yaml') as file:
+    params = yaml.load(file, Loader=yaml.FullLoader)
+
+
 try: # see if tqdm is available, otherwise define it as a dummy
     try: # Ipython seem to require different tqdm.. try..except seem to be the easiest way to check
         __IPYTHON__
@@ -111,28 +117,29 @@ gnss_steps = len(z_GNSS)
 # IMU noise values for STIM300, based on datasheet and simulation sample rate
 # Continous noise
 # TODO: CAN BE TUNED
-cont_gyro_noise_std = 7e-5 #4.36e-5  # (rad/s)/sqrt(Hz)
-cont_acc_noise_std = 4e-3#1.167e-3  # (m/s**2)/sqrt(Hz)
+cont_gyro_noise_std = float(params["cont_gyro_noise_std"]) #7e-5 #4.36e-5  # (rad/s)/sqrt(Hz)
+cont_acc_noise_std = float(params["cont_acc_noise_std"]) #4e-3#1.167e-3  # (m/s**2)/sqrt(Hz)
 
 # Discrete sample noise at simulation rate used
 rate_std = 0.5 * cont_gyro_noise_std * np.sqrt(1 / dt)
 acc_std = 0.5 * cont_acc_noise_std * np.sqrt(1 / dt)
 
 # Bias values
-rate_bias_driving_noise_std = 10e-2
+rate_bias_driving_noise_std = float(params["rate_bias_driving_noise_std"]) #10e-2
+#print(float(rate_bias_driving_noise_std)*2)
 cont_rate_bias_driving_noise_std = (
     (1 / 3) * rate_bias_driving_noise_std / np.sqrt(1 / dt)
 )
 
-acc_bias_driving_noise_std = 3 #WAS TUNED THE HEEELLL UPP 
+acc_bias_driving_noise_std = float(params["acc_bias_driving_noise_std"]) #3 #WAS TUNED THE HEEELLL UPP 
 cont_acc_bias_driving_noise_std = 6 * acc_bias_driving_noise_std / np.sqrt(1 / dt)
 
 # Position and velocity measurement
-p_std = np.array([0.3, 0.3, 0.5]) # np.array([0.3, 0.3, 0.5]) #Measurement noise
+p_std = np.array(params["p_std"]) #np.array([0.3, 0.3, 0.5]) # np.array([0.3, 0.3, 0.5]) #Measurement noise
 R_GNSS = np.diag(p_std ** 2)
 
-p_acc = 1e-17 #1e-16
-p_gyro = 1e-17 #1e-16
+p_acc = float(params["p_acc"]) #1e-17 #1e-16
+p_gyro = float(params["p_gyro"]) #1e-17 #1e-16
 
 # %% Estimator
 eskf = ESKF(
@@ -173,11 +180,11 @@ x_pred[0, VEL_IDX] = np.array([20, 0, 0])  # starting at 20 m/s due north
 x_pred[0, 6] = 1  # no initial rotation: nose to North, right to East, and belly down
 
 # These have to be set reasonably to get good results
-P_pred[0][POS_IDX ** 2] = 0.01*np.eye(3)# TODO TUNE
-P_pred[0][VEL_IDX ** 2] = 0.01*np.eye(3)# TODO TUNE
-P_pred[0][ERR_ATT_IDX ** 2] = 0.01*np.eye(3)# TODO TUNE# error rotation vector (not quat)
-P_pred[0][ERR_ACC_BIAS_IDX ** 2] = 0.1*np.eye(3)# TODO TUNE
-P_pred[0][ERR_GYRO_BIAS_IDX ** 2] = 0.1*np.eye(3)# TODO TUNE
+P_pred[0][POS_IDX ** 2] = params["P_pred0_pos"]*np.eye(3)# TODO TUNE
+P_pred[0][VEL_IDX ** 2] = params["P_pred0_vel"]*np.eye(3)# TODO TUNE
+P_pred[0][ERR_ATT_IDX ** 2] = params["P_pred0_att"]*np.eye(3)# TODO TUNE# error rotation vector (not quat)
+P_pred[0][ERR_ACC_BIAS_IDX ** 2] = params["P_pred0_accbias"]*np.eye(3)# TODO TUNE
+P_pred[0][ERR_GYRO_BIAS_IDX ** 2] = params["P_pred0_gyrobias"]*np.eye(3)# TODO TUNE
 
 # %% Test: you can run this cell to test your implementation
 dummy = eskf.predict(x_pred[0], P_pred[0], z_acceleration[0], z_gyroscope[0], dt)
@@ -227,7 +234,8 @@ ANEESvel = np.mean(NEES_vel)
 ANEESatt = np.mean(NEES_att)
 ANEESaccbias = np.mean(NEES_accbias)
 ANEESgyrobias = np.mean(NEES_gyrobias)
-ANIS = np.mean(NIS[:GNSSk])
+NIS=NIS[:GNSSk]
+ANIS = np.mean(NIS)
 
 
 print(f"ANEESall = {ANEESall:.2f}")
@@ -314,9 +322,9 @@ axs3[2].plot(t, eul_error)
 axs3[2].set(ylabel="Euler angles error [deg]")
 axs3[2].legend(
     [
-        rf"$\phi$ ({np.sqrt(np.mean((eul_error[:N, 0] )**2))})",
-        rf"$\theta$ ({np.sqrt(np.mean((eul_error[:N, 1] )**2))})",
-        rf"$\psi$ ({np.sqrt(np.mean((eul_error[:N, 2] )**2))})",
+        rf"$\phi$ ({np.sqrt(np.mean((eul_error[:N, 0] * 180 / np.pi)**2))})",
+        rf"$\theta$ ({np.sqrt(np.mean((eul_error[:N, 1] * 180 / np.pi)**2))})",
+        rf"$\psi$ ({np.sqrt(np.mean((eul_error[:N, 2] * 180 / np.pi)**2))})",
     ]
 )
 
@@ -324,9 +332,9 @@ axs3[3].plot(t, delta_x[:N, ERR_ACC_BIAS_IDX])
 axs3[3].set(ylabel="Accl bias error [m/s^2]")
 axs3[3].legend(
     [
-        f"$x$ ({np.sqrt(np.mean(delta_x[:N, 9]**2))})",
-        f"$y$ ({np.sqrt(np.mean(delta_x[:N, 10]**2))})",
-        f"$z$ ({np.sqrt(np.mean(delta_x[:N, 11]**2))})",
+        f"$x$ ({np.sqrt(np.mean(delta_x[:N, 12]**2))})",
+        f"$y$ ({np.sqrt(np.mean(delta_x[:N, 13]**2))})",
+        f"$z$ ({np.sqrt(np.mean(delta_x[:N, 14]**2))})",
     ]
 )
 
@@ -360,7 +368,7 @@ axs4[0].legend(
 
 axs4[1].plot(t, np.linalg.norm(delta_x[:N, VEL_IDX], axis=1))
 axs4[1].set(ylabel="Speed error [m/s]")
-axs4[1].legend([f"RMSE: {np.sqrt(np.mean(np.sum(delta_x[:N, VEL_IDX]**2, axis=1)))}"])
+axs4[1].legend([f"RMSE: {np.sqrt(np.mean(np.sum(delta_x[:N, VEL_IDX]**2, axis=0)))}"])
 
 
 # %% Consistency
