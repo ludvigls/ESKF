@@ -6,8 +6,8 @@ cont_gyro_noise_std: 4.36e-5 #7e-5
 cont_acc_noise_std: 1.167e-3 #4e-3
 
 #bias values
-rate_bias_driving_noise_std: 5.0e-5 #10e-2
-acc_bias_driving_noise_std: 2.0e-2 #3
+rate_bias_driving_noise_std: 5.0e-4 #10e-2
+acc_bias_driving_noise_std: 8.0e-3 #2.0e-2 #3
 
 #pos and velocity measurments - used in ESKF
 p_std: #std_gnss, R_GNSS = np.diag(p_std ** 2)
