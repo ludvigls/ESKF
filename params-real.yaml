@@ -15,4 +15,4 @@ acc_bias_driving_noise_std: 4.0e-3 #3
 p_acc: 1.0e-16 #1.0e-17
 p_gyro: 1.0e-16 #1.0e-17
 
-K_R: 1 #Tuning the 'adaptive R_GNSS
+K_R: 10 #Tuning the 'adaptive R_GNSS

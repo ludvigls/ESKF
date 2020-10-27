@@ -93,7 +93,7 @@ except Exception as e:
 filename_to_load = "task_real.mat"
 loaded_data = scipy.io.loadmat(filename_to_load)
 
-do_corrections = True # TODO: set to false for the last task
+do_corrections = False # TODO: set to false for the last task
 if do_corrections:
     S_a = loaded_data['S_a']
     S_g = loaded_data['S_g']
@@ -108,6 +108,8 @@ z_acceleration = loaded_data["zAcc"].T
 z_GNSS = loaded_data["zGNSS"].T
 z_gyroscope = loaded_data["zGyro"].T
 accuracy_GNSS = loaded_data['GNSSaccuracy'].ravel()
+
+
 
 dt = np.mean(np.diff(timeIMU))
 steps = len(z_acceleration)
@@ -185,7 +187,8 @@ GNSSk = 0
 for k in tqdm(range(N)):
     if timeIMU[k] >= timeGNSS[GNSSk]:
         #R_GNSS = TODO: Current GNSS covarian
-        R_GNSS= K_R/accuracy_GNSS[GNSSk]*np.eye(3)
+        #R_GNSS= K_R/accuracy_GNSS[GNSSk]*np.eye(3)
+        R_GNSS=K_R*accuracy_GNSS[GNSSk] ** 2 * np.eye(3)
         NIS[GNSSk] = eskf.NIS_GNSS_position(x_pred[k],P_pred[k],z_GNSS[GNSSk],R_GNSS,lever_arm)
 
         x_est[k], P_est[k] =eskf.update_GNSS_position(x_pred[k],P_pred[k],z_GNSS[GNSSk],R_GNSS,lever_arm)

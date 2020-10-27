@@ -123,11 +123,10 @@ class ESKF:
 
 
         k=Ts*omega #local rotation vector increment in body frame
-        absk=la.norm(k) #ensure pos
+        absk=la.norm(k)
 
         #quat_pred = q(k) x e^(k/2)
-        exp_kdiv2 = np.array(np.array([np.cos(absk/2),*(np.sin(absk/2)*k.T/absk)]))  # TODO: Calculate predicted quaternion
-        quaternion_prediction = quaternion_product(quaternion, exp_kdiv2)
+        quaternion_prediction = quaternion_product(quaternion, np.array(np.array([np.cos(absk/2),*(np.sin(absk/2)*k.T/absk)])) )
 
         # Normalize quaternion
         quaternion_prediction/=la.norm(quaternion_prediction) # TODO: Normalize
