@@ -1,0 +1,18 @@
+#MEASURMENT MODEL
+
+#continuous measurment noise (affecting R matrix)
+#Based on STIM300 datasheet
+cont_gyro_noise_std: 4.36e-5 #7e-5
+cont_acc_noise_std: 1.167e-3 #4e-3
+
+#bias values
+rate_bias_driving_noise_std: 5.0e-5 #10e-2
+acc_bias_driving_noise_std: 4.0e-3 #3
+
+#rate_bias_driving_noise_std: 6.0e-8 #10e-2
+#acc_bias_driving_noise_std: 2.0e-5 #3
+   
+p_acc: 1.0e-16 #1.0e-17
+p_gyro: 1.0e-16 #1.0e-17
+
+K_R: 1 #Tuning the 'adaptive R_GNSS
