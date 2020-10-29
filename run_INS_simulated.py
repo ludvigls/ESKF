@@ -154,7 +154,7 @@ eskf = ESKF(
 )
 
 
-steps=5000
+steps=20000
 # %% Allocate
 x_est = np.zeros((steps, 16))
 P_est = np.zeros((steps, 15, 15))
@@ -225,8 +225,7 @@ for k in tqdm(range(N)):
         assert np.all(np.isfinite(P_pred[k])), f"Not finite P_pred at index {k + 1}"
 
 #Average NEES / NIS
-print("NEEEES etter N")
-print(NEES_all[N:])
+
 ANEESall = np.mean(NEES_all)
 ANEESpos = np.mean(NEES_pos)
 ANEESvel = np.mean(NEES_vel)

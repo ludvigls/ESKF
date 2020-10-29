@@ -383,8 +383,8 @@ class ESKF:
         gyro_bias = self.S_g @ x_nominal[GYRO_BIAS_IDX]
 
         # debias IMU measurements
-        acceleration = r_z_acc-acc_bias
-        omega =r_z_gyro-gyro_bias
+        acceleration=r_z_acc-acc_bias
+        omega=r_z_gyro-gyro_bias
 
         # perform prediction
         x_nominal_predicted = self.predict_nominal(x_nominal,acceleration,omega,Ts)
@@ -576,7 +576,7 @@ class ESKF:
         W = P@H.T@np.linalg.inv(S) # TODO: Kalman gain
         delta_x = W@innovation # TODO: delta x
 
-        Jo = I - W @ H  # for Joseph form
+        Jo = I - W @ H 
 
         P_update = Jo@P@Jo.T+W@R_GNSS@W.T # TODO: P update
 
@@ -712,15 +712,7 @@ class ESKF:
         ), f"ESKF.NEES: x_true shape incorrect {x_true.shape}"
 
         d_x = cls.delta_x(x_nominal, x_true)
-        """
-        NEES_all = d_x.T@np.linalg.inv(P)@d_x  # TODO: NEES all
-        NEES_pos = d_x[POS_IDX].T@np.linalg.inv(P[POS_IDX**2])@d_x[POS_IDX] # TODO: NEES position
-        NEES_vel = d_x[VEL_IDX].T@np.linalg.inv(P[VEL_IDX**2])@d_x[VEL_IDX]  # TODO: NEES velocity
-        NEES_att = d_x[ATT_IDX].T@np.linalg.inv(P[ATT_IDX**2])@d_x[ATT_IDX]  # TODO: NEES attitude
-        NEES_accbias = d_x[ACC_BIAS_IDX].T@np.linalg.inv(P[ACC_BIAS_IDX**2])@d_x[ACC_BIAS_IDX]  # TODO: NEES accelerometer bias
-        NEES_gyrobias = d_x[GYRO_BIAS_IDX].T@(P[GYRO_BIAS_IDX**2])@d_x[GYRO_BIAS_IDX]  # TODO: NEES gyroscope bias
-        NEES_gyrobias=cls._NEES(P[ERR_GYRO_BIAS_IDX**2], d_x[ERR_GYRO_BIAS_IDX])
-        """
+        
         NEES_all = cls._NEES(d_x,P)
         NEES_pos = cls._NEES(d_x[POS_IDX],P[POS_IDX**2])
         NEES_vel = cls._NEES(d_x[VEL_IDX],P[VEL_IDX**2])
